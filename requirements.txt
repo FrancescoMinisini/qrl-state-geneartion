@@ -1,0 +1,5 @@
+torch
+pennylane
+numpy
+random
+matplotlib
