@@ -2,8 +2,10 @@ import torch
 import pennylane as qml
 import numpy as np
 import random
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 from collections import deque
+import pandas as pd
 
 # -------------------------- Hyperparameters (tune if needed) --------------------------
 n_wires = 3
@@ -94,10 +96,15 @@ def get_action(state_vec, params, noise=True):
         action = torch.clamp(action, -scale, scale)
     return action
 
+def random_state(dim):
+    vec = np.random.randn(dim) + 1j * np.random.randn(dim)
+    vec /= np.linalg.norm(vec)
+    return vec
+
 # -------------------------- Training loop --------------------------
 print("Starting training...")
-for ep in range(num_episodes):
-    state_vec = torch.tensor(qml.math.random_state(2), dtype=torch.complex128)
+for ep in tqdm(range(num_episodes)):
+    state_vec = torch.tensor(random_state(2), dtype=torch.complex128)
 
     for t in range(T):
         action = get_action(state_vec, params_actor)
@@ -163,7 +170,7 @@ print("Training finished.")
 num_test = 1000
 means = [[] for _ in range(T+1)]
 for _ in range(num_test):
-    state_vec = torch.tensor(qml.math.random_state(2), dtype=torch.complex128)
+    state_vec = torch.tensor(random_state(2), dtype=torch.complex128)
     overlap = torch.vdot(state_vec, sd)
     means[0].append(torch.real(overlap * overlap.conj()).item())
 
@@ -175,6 +182,18 @@ for _ in range(num_test):
 
 avg_p = [np.mean(step) for step in means]
 var_p = [np.var(step) for step in means]
+
+# Save summary results (averages and variances) to CSV
+summary_df = pd.DataFrame({
+    'Step': range(T + 1),
+    'Average_Overlap': avg_p,
+    'Variance_Overlap': var_p
+})
+summary_df.to_csv('overlap_summary.csv', index=False)
+
+# Save full results (all individual overlaps) to CSV
+full_df = pd.DataFrame({f'Step_{i}': means[i] for i in range(T + 1)})
+full_df.to_csv('overlap_full.csv', index=False)
 
 plt.figure(figsize=(8,5))
 plt.plot(range(T+1), avg_p, label="Average $|\\langle \\psi_t | 1 \\rangle|^2$")
